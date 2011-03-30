@@ -10,33 +10,6 @@ from webob import Request, Response
 
 connection = pymongo.Connection()
 
-class DeleteThisResponseClass(object):
-    def __init__(self, status=200, body='', headers=None):
-        self.headers = ordereddict.OrderedDict()
-        if headers is not None:
-            self.headers.update(headers)
-        self.status_code = status
-        self.set_body(body)
-
-    @property
-    def status(self):
-        return "%d %s"%(self.status_code, httplib.responses[self.status_code])
-
-    @status.setter
-    def set_status(self, status):
-        self.status_code = status
-
-    def get_body(self):
-        return self.body_content
-
-    def set_body(self, val):
-        self.headers['Content-Length'] = len(val)
-        self.body_content = val
-
-class Request(object):
-    def __init__(self, environ):
-        self._wsgi_environ = environ
-
 class RequestDispatcher(object):
     def __call__(self, environ, start_response):
         request = Request(environ)
@@ -47,14 +20,15 @@ class RequestDispatcher(object):
             try:
                 args_re = getattr(method, 'url_args', None)
                 if args_re is not None:
-                    args = args_re.match(path_info).groups()
+                    args = args_re.match(request.path_info).groups()
                 else:
-                    args = path_info.strip('/').split('/')
-                response = method(wsgi_request, args)
+                    args = request.path_info.strip('/').split('/')
+                response = method(request, args)
             except Exception, e:
+                print e
                 response = Response(status=500, body="<h1>Server Error</h1>")
-        start_response(response.status, response.headers.items())
-        return [response.get_body()]
+        start_response(response.status, response.headerlist)
+        return response.app_iter
 
 class AnyStat(RequestDispatcher):
     def GET(self, request, url_pieces):
@@ -66,7 +40,7 @@ def start_server():
     evwsgi.start("0.0.0.0", "5747")
     evwsgi.set_base_module(fapws.base)
     evwsgi.wsgi_cb(("/stats/", AnyStat()))
-    evwsgi.set_debug(1)
+    #evwsgi.set_debug(1)
     evwsgi.run()
 
 if __name__ == "__main__":
