@@ -5,9 +5,10 @@ import httplib
 import datetime
 import ordereddict
 
-import uwsgi
 import pymongo
 from bson import json_util
+import fapws._evwsgi as evwsgi
+import fapws.base
 from webob import Request, Response
 
 
@@ -97,12 +98,10 @@ def start_server():
     evwsgi.set_base_module(fapws.base)
     stats_app = AnyStat()
     evwsgi.wsgi_cb(("/stats/", stats_app))
-    def commit(env):
-        stats_app.cache.commit()
-        return uwsgi.SPOOL_RETRY
-    uwsgi.set_spooler_frequency(30)
-    uwsgi.spooler = commit
-    uwsgi.send_to_spooler({'action':'start'})
+    commit = lambda: stats_app.cache.commit()
+    evwsgi.add_timer(10, commit)
+    #evwsgi.set_debug(1)
+    evwsgi.run()
 
 if __name__ == "__main__":
     start_server()
